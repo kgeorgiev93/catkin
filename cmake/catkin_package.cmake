@@ -172,8 +172,15 @@ function(_catkin_package)
     endif()
   endforeach()
 
+  if(HUNTER_ENABLED)
+    # Nullify the foreach block above when using Hunter. This avoids adding absolute paths
+    # to target link libraries for exported targets.  
+    set(PROJECT_DEPENDENCIES_INCLUDE_DIRS "")
+    set(PROJECT_DEPENDENCIES_LIBRARIES "")
+  endif()
+
   # for catkin packages it can be guaranteed that they are find_package()-able and have pkg-config files
-  set(PROJECT_DEPENDENCIES "")
+  set(PROJECT_DEPENDENCIES ${PROJECT_DEPENDS})
   foreach(depend_name ${_PROJECT_CATKIN_DEPENDS})
     # verify that all catkin packages which have been find_package()-ed are listed as build dependencies
     if(${depend_name}_FOUND)
