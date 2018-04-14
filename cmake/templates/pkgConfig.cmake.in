@@ -116,7 +116,18 @@ if(NOT "@PROJECT_CMAKE_CONFIG_INCLUDE_DIRS@ " STREQUAL " ")
   endforeach()
 endif()
 
-set(libraries "@PKG_CONFIG_LIBRARIES@")
+#  - in develspace, we do it the old catkin way, except that we do not unpack and
+#    deduplicate the libs, they stay as targets
+#  - in installspace, we really only need the exported targets and these will be processed
+#    after all dependencies have been find_package'd below.
+#    This retains backwards compatibility so that no code needs to change what is
+#    in PROJECT_LIBRARIES when compiling with (non-hunterised) catkin_make
+if("@DEVELSPACE@" STREQUAL "TRUE")
+  set(libraries "@PKG_CONFIG_LIBRARIES@")
+else()
+  set(libraries "")
+endif()
+
 foreach(library ${libraries})
   # keep build configuration keywords, target names and absolute libraries as-is
   if("${library}" MATCHES "^(debug|optimized|general)$")
@@ -177,17 +188,36 @@ foreach(depend ${depends})
     find_package(${@PROJECT_NAME@_dep} REQUIRED NO_MODULE ${depend_list})
   endif()
   _list_append_unique(@PROJECT_NAME@_INCLUDE_DIRS ${${@PROJECT_NAME@_dep}_INCLUDE_DIRS})
-
-  # merge build configuration keywords with library names to correctly deduplicate
-  _pack_libraries_with_build_configuration(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARIES})
-  _pack_libraries_with_build_configuration(_libraries ${${@PROJECT_NAME@_dep}_LIBRARIES})
-  _list_append_deduplicate(@PROJECT_NAME@_LIBRARIES ${_libraries})
-  # undo build configuration keyword merging after deduplication
-  _unpack_libraries_with_build_configuration(@PROJECT_NAME@_LIBRARIES ${@PROJECT_NAME@_LIBRARIES})
-
-  _list_append_unique(@PROJECT_NAME@_LIBRARY_DIRS ${${@PROJECT_NAME@_dep}_LIBRARY_DIRS})
   list(APPEND @PROJECT_NAME@_EXPORTED_TARGETS ${${@PROJECT_NAME@_dep}_EXPORTED_TARGETS})
 endforeach()
+
+# In INSTALLSPACE we can now process all libraries that will be added to
+# ${catkin_LIBRARIES} in a similar way as done above for DEVELSPACE. Some downstream
+# packages might also include just library names that need to be found by calling
+# find_library() on them.
+if("@DEVELSPACE@" STREQUAL "FALSE")
+  if(NOT "@PROJECT_INSTALLSPACE_LIBRARIES@" STREQUAL "")
+    include(${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake)
+  endif()
+
+  set(libraries "@PROJECT_INSTALLSPACE_LIBRARIES@")
+  foreach(library ${libraries})
+    # keep build configuration keywords, target names and absolute libraries as-is
+    if("${library}" MATCHES "^(debug|optimized|general)$")
+      list(APPEND @PROJECT_NAME@_LIBRARIES ${library})
+    elseif(TARGET ${library})
+      list(APPEND @PROJECT_NAME@_LIBRARIES ${library})
+    elseif(IS_ABSOLUTE ${library})
+      list(APPEND @PROJECT_NAME@_LIBRARIES ${library})
+    else()
+      find_library(lib ${library})
+      if(NOT lib)
+        message(FATAL_ERROR "Project '${PROJECT_NAME}' tried to find library '${library}'.  The library is neither a target nor built/installed properly.  Did you compile project '@PROJECT_NAME@'?  Did you find_package() it before the subdirectory containing its code is included?")
+      endif()
+      list(APPEND @PROJECT_NAME@_LIBRARIES ${lib})
+    endif()
+  endforeach()
+endif()
 
 set(pkg_cfg_extras "@PKG_CFG_EXTRAS@")
 foreach(extra ${pkg_cfg_extras})
