@@ -188,6 +188,7 @@ foreach(depend ${depends})
     find_package(${@PROJECT_NAME@_dep} REQUIRED NO_MODULE ${depend_list})
   endif()
   _list_append_unique(@PROJECT_NAME@_INCLUDE_DIRS ${${@PROJECT_NAME@_dep}_INCLUDE_DIRS})
+  list(APPEND @PROJECT_NAME@_LIBRARIES ${${@PROJECT_NAME@_dep}_LIBRARIES})
   list(APPEND @PROJECT_NAME@_EXPORTED_TARGETS ${${@PROJECT_NAME@_dep}_EXPORTED_TARGETS})
 endforeach()
 
